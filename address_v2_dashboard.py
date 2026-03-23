@@ -91,7 +91,6 @@ def fetch_conversions(start_date, end_date, selected_versions):
             
         FROM default.events_raw
         WHERE {cond}
-        AND event_name IN ('app_open', 'add_address_clicked', 'confirm_location', 'save_address_clicked', 'map_support_nudge_shown')
         GROUP BY session_id
         HAVING new_address_experience != ''
     )
@@ -111,7 +110,7 @@ def fetch_accuracy(start_date, end_date, selected_versions):
     query = f"""
     SELECT
         count(if(conf_acc < 100 AND conf_acc != 0 AND best_acc = 0, 1, NULL)) as fetched_best_early,
-        count(if(best_acc != 0, 1, NULL)) as fetched_better_later,
+        count(if(best_acc != 0 AND best_acc < conf_acc, 1, NULL)) as fetched_better_later,
         avg(if(conf_acc != 0 AND best_acc != 0, conf_acc - best_acc, NULL)) as avg_improvement,
         quantile(0.95)(if(conf_acc != 0 AND best_acc != 0, conf_acc - best_acc, NULL)) as p95_improvement,
         avg(if(conf_acc != 0, conf_acc, NULL)) as avg_confirmed_accuracy,
@@ -126,7 +125,6 @@ def fetch_accuracy(start_date, end_date, selected_versions):
             anyIf(toFloat64OrZero(JSONExtractString(metadata, 'best_location_accuracy')), event_name = 'save_address_clicked' AND JSONHas(metadata, 'best_location_accuracy')=1 AND JSONExtractString(metadata, 'best_location_accuracy') != '') as best_acc
         FROM default.events_raw
         WHERE {cond}
-        AND event_name IN ('app_open', 'save_address_clicked')
         GROUP BY session_id
         HAVING new_address_experience = 'true' AND conf_acc != 0
     )
@@ -156,7 +154,6 @@ def fetch_marker_moves(start_date, end_date, selected_versions):
             if(t_confirm > t_add_address AND t_add_address > 0, 1, 0) as has_confirmed
         FROM default.events_raw
         WHERE {cond}
-        AND event_name IN ('app_open', 'add_address_clicked', 'confirm_location', 'location_marker_moved')
         GROUP BY session_id
         HAVING t_add_address > 0 AND new_address_experience != ''
     )
@@ -189,7 +186,6 @@ def fetch_support_matrix(start_date, end_date, selected_versions):
             minIf(event_timestamp, event_name = 'save_address_clicked') as t_save
         FROM default.events_raw
         WHERE {cond}
-        AND event_name IN ('map_support_nudge_shown', 'confirm_location', 'save_address_clicked')
         GROUP BY session_id
         HAVING reason != ''
     )
@@ -219,7 +215,6 @@ def fetch_search_impact(start_date, end_date, selected_versions):
             minIf(event_timestamp, event_name = 'save_address_clicked') as t_save
         FROM default.events_raw
         WHERE {cond}
-        AND event_name IN ('map_search_bar', 'save_address_clicked')
         GROUP BY session_id
         HAVING source != ''
     )
@@ -247,7 +242,6 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
             minIf(event_timestamp, event_name = 'save_address_clicked' AND JSONExtractString(metadata, 'source') = 'add_address') as t_save_address
         FROM default.events_raw
         WHERE {cond}
-          AND event_name IN ('add_address_clicked', 'confirm_location', 'save_address_clicked')
         GROUP BY session_id, user_id
         HAVING user_id != 0
            AND max(if(event_name = 'add_address_clicked' AND JSONExtractString(metadata, 'add_address') = 'cartFragment' AND JSONExtractString(metadata, 'address') = '0', 1, 0)) = 1
@@ -262,7 +256,6 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
                anyIf(JSONExtractString(metadata, 'new_address_experience'), event_name = 'app_open' AND JSONHas(metadata, 'new_address_experience')=1 AND JSONExtractString(metadata, 'new_address_experience') NOT IN ('', 'not_set')) as variant
         FROM default.events_raw
         WHERE {cond}
-          AND event_name = 'app_open'
         GROUP BY user_id
         HAVING variant != ''
     ),
@@ -284,7 +277,6 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
                max(if(event_name = 'get_current_location_clicked', 1, 0)) as get_current_loc_clicked
         FROM default.events_raw
         WHERE {cond}
-          AND event_name IN ('location_permission_granted', 'location_permission_denied', 'gps_permission_granted', 'gps_permission_denied', 'get_current_location_clicked')
         GROUP BY session_id
     ),
     MatchedOrders AS (
@@ -732,33 +724,6 @@ elif selected == "🎯 Accuracy Attribution":
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Gauge for improvement
-    st.markdown("#### Accuracy Improvement Gauge")
-    col_g1, col_g2 = st.columns(2)
-    max_avg_val = max(30, avg_imp * 1.5)
-    max_p95_val = max(130, p95_imp * 1.5)
-    for col, label, avg, max_val, clr in [
-        (col_g1, "Avg Improvement (m)", avg_imp, max_avg_val, GREEN),
-        (col_g2, "P95 Improvement (m)", p95_imp, max_p95_val, PURPLE),
-    ]:
-        with col:
-            fig_g = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=avg,
-                title={"text": label, "font": {"color": "#e2e8f0", "size": 13}},
-                gauge={
-                    "axis": {"range": [0, max_val], "tickcolor": FONT_CLR},
-                    "bar": {"color": clr},
-                    "bgcolor": "rgba(0,0,0,0)",
-                    "bordercolor": "rgba(255,255,255,0.05)",
-                    "steps": [{"range": [0, max_val * 0.5], "color": "rgba(255,255,255,0.04)"},
-                               {"range": [max_val * 0.5, max_val], "color": "rgba(255,255,255,0.02)"}],
-                },
-                number={"suffix": " m", "font": {"color": "#f1f5f9", "size": 28}},
-            ))
-            fig_g.update_layout(**base_layout(height=260))
-            st.plotly_chart(fig_g, use_container_width=True)
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  MARKER MOVES
 # ─────────────────────────────────────────────────────────────────────────────
@@ -795,39 +760,7 @@ elif selected == "🖱️ Marker Moves":
     with c4: st.metric("Dropped Off — New UI", f"{new_drop_pct}%", f"Avg {new_moves_drop} marker moves")
 
     st.divider()
-
-    col_pie, col_bar = st.columns([1, 1.6])
-
-    with col_pie:
-        # Session distribution pies
-        st.markdown("**Session Outcome Distribution**")
-        fig_pies = make_subplots(
-            rows=1, cols=2,
-            specs=[[{"type": "domain"}, {"type": "domain"}]],
-            subplot_titles=["Old UI", "New UI"],
-        )
-        colors_pie = [GREEN, ROSE]
-        for i, (variant, confirmed_pct, dropped_pct) in enumerate([
-            ("Old UI", old_conf_pct, old_drop_pct),
-            ("New UI", new_conf_pct, new_drop_pct),
-        ]):
-            fig_pies.add_trace(go.Pie(
-                labels=["Confirmed", "Dropped Off"],
-                values=[confirmed_pct, dropped_pct],
-                hole=0.55,
-                marker=dict(colors=colors_pie, line=dict(width=2, color="rgba(13,18,38,0.8)")),
-                textfont=dict(color="#e2e8f0", size=11),
-                textinfo="percent",
-                hovertemplate="%{label}: %{percent}<extra></extra>",
-            ), row=1, col=i+1)
-        fig_pies.update_layout(**base_layout(height=290), showlegend=True,
-            legend=dict(orientation="h", yanchor="bottom", y=-0.15, font=dict(color=FONT_CLR)))
-        for annotation in fig_pies.layout.annotations:
-            annotation.font.color = "#e2e8f0"
-            annotation.font.size = 12
-        st.plotly_chart(fig_pies, use_container_width=True)
-
-    with col_bar:
+    with st.container():
         # Avg marker moves comparison
         st.markdown("**Avg Marker Moves — Confirmed vs Dropped Off**")
         combo = go.Figure()
@@ -1082,7 +1015,7 @@ elif selected == "🚚 Delivery Impact":
         # Time Metrics Top Row
         c1, c2, c3, c4 = st.columns(4)
         with c1: st.metric("Orders Tracked", f"{new_n}", f"{new_n - old_n} vs Old UI")
-        with c2: st.metric("Overall Delivery P90", f"{new_dp90:.1f}m", f"{new_dp90 - old_dp90:.1f}m vs Old UI")
+        with c2: st.metric("Overall Delivery P90", f"{new_dp90:.1f}m", f"{new_dp90 - old_dp90:.1f}m vs Old UI", delta_color="inverse")
         with c3: st.metric("Ride Time P90", f"{new_rp90:.1f}m", f"{new_rp90 - old_rp90:.1f}m vs Old UI", delta_color="inverse")
         with c4: st.metric("Handover P90", f"{new_hp90:.1f}m", f"{new_hp90 - old_hp90:.1f}m vs Old UI", delta_color="inverse")
         
