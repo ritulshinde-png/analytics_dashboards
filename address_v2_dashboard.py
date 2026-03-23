@@ -91,6 +91,7 @@ def fetch_conversions(start_date, end_date, selected_versions):
             
         FROM default.events_raw
         WHERE {cond}
+        AND event_name IN ('app_open', 'add_address_clicked', 'confirm_location', 'save_address_clicked', 'map_support_nudge_shown')
         GROUP BY session_id
         HAVING new_address_experience != ''
     )
@@ -125,6 +126,7 @@ def fetch_accuracy(start_date, end_date, selected_versions):
             anyIf(toFloat64OrZero(JSONExtractString(metadata, 'best_location_accuracy')), event_name = 'save_address_clicked' AND JSONHas(metadata, 'best_location_accuracy')=1 AND JSONExtractString(metadata, 'best_location_accuracy') != '') as best_acc
         FROM default.events_raw
         WHERE {cond}
+        AND event_name IN ('app_open', 'save_address_clicked')
         GROUP BY session_id
         HAVING new_address_experience = 'true' AND conf_acc != 0
     )
@@ -154,6 +156,7 @@ def fetch_marker_moves(start_date, end_date, selected_versions):
             if(t_confirm > t_add_address AND t_add_address > 0, 1, 0) as has_confirmed
         FROM default.events_raw
         WHERE {cond}
+        AND event_name IN ('app_open', 'add_address_clicked', 'confirm_location', 'location_marker_moved')
         GROUP BY session_id
         HAVING t_add_address > 0 AND new_address_experience != ''
     )
@@ -186,6 +189,7 @@ def fetch_support_matrix(start_date, end_date, selected_versions):
             minIf(event_timestamp, event_name = 'save_address_clicked') as t_save
         FROM default.events_raw
         WHERE {cond}
+        AND event_name IN ('map_support_nudge_shown', 'confirm_location', 'save_address_clicked')
         GROUP BY session_id
         HAVING reason != ''
     )
@@ -215,6 +219,7 @@ def fetch_search_impact(start_date, end_date, selected_versions):
             minIf(event_timestamp, event_name = 'save_address_clicked') as t_save
         FROM default.events_raw
         WHERE {cond}
+        AND event_name IN ('map_search_bar', 'save_address_clicked')
         GROUP BY session_id
         HAVING source != ''
     )
@@ -242,6 +247,7 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
             minIf(event_timestamp, event_name = 'save_address_clicked' AND JSONExtractString(metadata, 'source') = 'add_address') as t_save_address
         FROM default.events_raw
         WHERE {cond}
+          AND event_name IN ('add_address_clicked', 'confirm_location', 'save_address_clicked')
         GROUP BY session_id, user_id
         HAVING user_id != 0
            AND max(if(event_name = 'add_address_clicked' AND JSONExtractString(metadata, 'add_address') = 'cartFragment' AND JSONExtractString(metadata, 'address') = '0', 1, 0)) = 1
@@ -256,6 +262,7 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
                anyIf(JSONExtractString(metadata, 'new_address_experience'), event_name = 'app_open' AND JSONHas(metadata, 'new_address_experience')=1 AND JSONExtractString(metadata, 'new_address_experience') NOT IN ('', 'not_set')) as variant
         FROM default.events_raw
         WHERE {cond}
+          AND event_name = 'app_open'
         GROUP BY user_id
         HAVING variant != ''
     ),
@@ -277,6 +284,7 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
                max(if(event_name = 'get_current_location_clicked', 1, 0)) as get_current_loc_clicked
         FROM default.events_raw
         WHERE {cond}
+          AND event_name IN ('location_permission_granted', 'location_permission_denied', 'gps_permission_granted', 'gps_permission_denied', 'get_current_location_clicked')
         GROUP BY session_id
     ),
     MatchedOrders AS (
