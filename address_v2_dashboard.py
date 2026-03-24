@@ -1140,27 +1140,36 @@ elif selected == "🚚 Delivery Impact":
 
             col_a, col_b, col_c = st.columns(3)
             with col_a:
-                st.markdown("**1. Missing Location Permission**")
+                st.markdown("##### 📍 Missing Location Permission")
                 gp1_moves_sum = sum(float(r.get('marker_moves', 0)) for r in grp_no_perm)
                 gp1_searches_sum = sum(float(r.get('map_searches', 0)) for r in grp_no_perm)
                 tot_events = gp1_moves_sum + gp1_searches_sum
                 moves_split = (gp1_moves_sum / tot_events * 100) if tot_events else 0
                 search_split = (gp1_searches_sum / tot_events * 100) if tot_events else 0
-                st.caption("Friction Usage Distribution:")
-                st.markdown(f"**{moves_split:.1f}%** Marker Drags")
-                st.markdown(f"**{search_split:.1f}%** Map Searches")
+                
+                n_a = len(grp_no_perm)
+                gp1_moves = gp1_moves_sum / n_a if n_a else 0
+                gp1_searches = gp1_searches_sum / n_a if n_a else 0
+                
+                st.caption("Friction Usage Distribution")
+                st.metric("Marker Drags", f"{moves_split:.1f}%", f"{gp1_moves:.1f} avg/user", delta_color="off")
+                st.metric("Map Searches", f"{search_split:.1f}%", f"{gp1_searches:.1f} avg/user", delta_color="off")
                 
             with col_b:
-                st.markdown("**2A. Massive GPS Inaccuracy**")
+                st.markdown("##### 📡 Massive GPS Inaccuracy")
                 valid_accs = [float(r['best_acc']) for r in grp_perm_gps if r.get('raw_best_acc', '') != '']
                 avg_acc = sum(valid_accs)/len(valid_accs) if valid_accs else 0
+                
+                valid_accs_sorted = sorted(valid_accs)
+                p90_acc = valid_accs_sorted[int(len(valid_accs_sorted) * 0.90)] if valid_accs_sorted else 0
+                
                 empty_pct = (sum(1 for r in grp_perm_gps if r.get('raw_best_acc', '') == '') / len(grp_perm_gps) * 100) if len(grp_perm_gps) else 0
-                st.caption("Background Attempt Quality:")
-                st.markdown(f"**{avg_acc:.1f}m** Avg 'Best' Acc attempt")
-                st.markdown(f"**{empty_pct:.1f}%** Failed to fetch")
+                st.caption("Background Attempt Quality")
+                st.metric("Avg 'Best' Acc attempt", f"{avg_acc:.1f}m", f"P90: {p90_acc:.1f}m", delta_color="off")
+                st.metric("Failed to fetch", f"{empty_pct:.1f}%", delta_color="off")
                 
             with col_c:
-                st.markdown("**2B. Mischievous / Override**")
+                st.markdown("##### 🕵️ Mischievous / Override")
                 bins = {'<50m': 0, '50-200m': 0, '>200m': 0}
                 n_b = len(grp_perm_mischief)
                 for r in grp_perm_mischief:
@@ -1168,10 +1177,10 @@ elif selected == "🚚 Delivery Impact":
                     if d <= 50: bins['<50m'] += 1
                     elif d <= 200: bins['50-200m'] += 1
                     else: bins['>200m'] += 1
-                st.caption("Manual Drag Distance Buckets:")
-                st.markdown(f"**{bins['<50m']/n_b*100 if n_b else 0:.1f}%** dragged < 50m")
-                st.markdown(f"**{bins['50-200m']/n_b*100 if n_b else 0:.1f}%** dragged 50-200m")
-                st.markdown(f"**{bins['>200m']/n_b*100 if n_b else 0:.1f}%** dragged > 200m")
+                st.caption("Manual Drag Distance Buckets")
+                st.metric("Dragged < 50m", f"{bins['<50m']/n_b*100 if n_b else 0:.1f}%", delta_color="off")
+                st.metric("Dragged 50-200m", f"{bins['50-200m']/n_b*100 if n_b else 0:.1f}%", delta_color="off")
+                st.metric("Dragged > 200m", f"{bins['>200m']/n_b*100 if n_b else 0:.1f}%", delta_color="off")
 
     else:
         st.warning("No tracking data available for the given criteria.")
