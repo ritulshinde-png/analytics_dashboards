@@ -348,6 +348,43 @@ def fetch_delivery_impact(start_date, end_date, selected_versions):
     ].copy()
     return valid_df
 
+@st.cache_data(show_spinner="Fetching Inaccurate Order Attribution...")
+def fetch_inaccurate_attribution(start_date, end_date, selected_versions):
+    cond = get_base_conditions(start_date, end_date, selected_versions)
+    sd = start_date.strftime('%Y-%m-%d 00:00:00')
+    
+    query = f"""
+    WITH AddressSessions AS (
+        SELECT session_id, user_id, minIf(event_timestamp, event_name = 'save_address_clicked' AND JSONExtractString(metadata, 'source') = 'add_address') as t_save_address
+        FROM default.events_raw WHERE {cond} AND event_name IN ('add_address_clicked', 'confirm_location', 'save_address_clicked')
+        GROUP BY session_id, user_id HAVING user_id != 0 AND max(if(event_name = 'add_address_clicked' AND JSONExtractString(metadata, 'add_address') = 'cartFragment' AND JSONExtractString(metadata, 'address') = '0', 1, 0)) = 1 AND sequenceMatch('(?1)(?t>=0)(?2)(?t>=0)(?3)')(event_timestamp, event_name = 'add_address_clicked' AND JSONExtractString(metadata, 'add_address') = 'cartFragment' AND JSONExtractString(metadata, 'address') = '0', event_name = 'confirm_location' AND JSONExtractString(metadata, 'source') = 'cart', event_name = 'save_address_clicked' AND JSONExtractString(metadata, 'source') = 'add_address') = 1
+    ),
+    UserVariants AS (
+        SELECT user_id, anyIf(JSONExtractString(metadata, 'new_address_experience'), event_name = 'app_open' AND JSONHas(metadata, 'new_address_experience')=1 AND JSONExtractString(metadata, 'new_address_experience') NOT IN ('', 'not_set')) as variant
+        FROM default.events_raw WHERE {cond} AND event_name = 'app_open' GROUP BY user_id HAVING variant = 'true'
+    ),
+    UserFirstAddress AS (
+        SELECT a.user_id, v.variant as variant, argMin(a.session_id, a.t_save_address) as session_id, min(a.t_save_address) as t_save_address
+        FROM AddressSessions a JOIN UserVariants v ON a.user_id = v.user_id GROUP BY a.user_id, v.variant
+    ),
+    MatchedOrders AS (
+        SELECT a.user_id, a.session_id, toFloat64OrNull(JSONExtractString(o.metadata, 'placement_del_distance')) as placement_del_distance, row_number() OVER (PARTITION BY a.user_id ORDER BY o.timestamp ASC) as rn
+        FROM UserFirstAddress a JOIN mixpanel.events_tracking_buffer o ON toUInt64OrZero(toString(a.user_id)) = toUInt64OrZero(toString(o.user_id))
+        WHERE o.event_name = 'OrderDelivered' AND JSONExtractString(o.metadata, 'order_count') = '1' AND toUInt64(o.timestamp) >= toUInt64(toUnixTimestamp(toDateTime('{sd}'))) * 1000 AND toUInt64(o.timestamp) >= toUInt64(a.t_save_address) AND toUInt64(o.timestamp) <= toUInt64(a.t_save_address) + 86400000 AND toFloat64OrNull(JSONExtractString(o.metadata, 'placement_del_distance')) > 200
+    ),
+    FirstOrders AS (
+        SELECT * FROM MatchedOrders WHERE rn = 1
+    ),
+    FrontendDetails AS (
+        SELECT session_id, maxIf(JSONHas(metadata, 'location_permission'), event_name = 'confirm_location') as provided_loc_perm, anyIf(toFloat64OrZero(JSONExtractString(metadata, 'distance')), event_name = 'confirm_location') as conf_distance, anyIf(toFloat64OrZero(JSONExtractString(metadata, 'best_location_accuracy')), event_name = 'save_address_clicked') as best_acc, anyIf(JSONExtractString(metadata, 'best_location_accuracy'), event_name = 'save_address_clicked') as raw_best_acc, sum(if(event_name = 'location_marker_moved', 1, 0)) as marker_moves, sum(if(event_name = 'map_search_bar', 1, 0)) as map_searches
+        FROM default.events_raw WHERE {cond} AND event_name IN ('confirm_location', 'save_address_clicked', 'location_marker_moved', 'map_search_bar') GROUP BY session_id
+    )
+    SELECT m.user_id, m.session_id, m.placement_del_distance, f.provided_loc_perm, f.conf_distance, f.best_acc, f.raw_best_acc, f.marker_moves, f.map_searches
+    FROM FirstOrders m JOIN FrontendDetails f ON m.session_id = f.session_id
+    """
+    res = client.execute_query(query)
+    return res if res else []
+
 # ─── Custom CSS ─────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
