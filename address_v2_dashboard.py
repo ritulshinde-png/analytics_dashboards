@@ -448,13 +448,14 @@ with st.sidebar:
     st.markdown("**Filters**")
     
     # Date Filter
-    date_range = st.date_input("Date Range", value=(datetime.date(2026, 3, 7), datetime.date.today()))
+    date_range = st.date_input("Date Range", value=(datetime.date(2026, 3, 11), datetime.date(2026, 3, 23)))
     start_date = date_range[0]
     end_date = date_range[1] if len(date_range) > 1 else date_range[0]
 
     # App Version Filter
     versions = fetch_versions()
-    selected_versions = st.multiselect("App Versions", versions, default=[])
+    def_vers = [v for v in ['3.12.2.0', '3.12.3.0', '3.12.4.0'] if v in versions]
+    selected_versions = st.multiselect("App Versions", versions, default=def_vers)
     
     # Refresh Button
     if st.button("Refresh Data", type="primary"):
