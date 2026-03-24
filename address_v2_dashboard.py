@@ -1076,31 +1076,65 @@ elif selected == "🚚 Delivery Impact":
         st.markdown("---")
         
         # Deep Dive (>200m attribution)
-        st.markdown("#### Attribution for Inaccurate Orders (>200m)")
-        st.markdown("Why was the pin placed so inaccurately? Looking closely at device permissions:")
+        st.markdown("#### Detailed Attribution for Inaccurate Orders (>200m)")
+        st.markdown("We broke down the highly-deviating orders into 3 major causal segments based on location permission and explicit map fraction (True Variant Only).")
         
-        def attr_metrics(subset):
-            inacc = subset[subset['placement_del_distance'] > 200]
-            n = len(inacc)
-            if n == 0: return [0,0,0,0,0]
-            loc_gran = len(inacc[inacc['loc_perm_granted']==1])/n*100
-            loc_deni = len(inacc[inacc['loc_perm_denied']==1])/n*100
-            gps_gran = len(inacc[inacc['gps_perm_granted']==1])/n*100
-            gps_deni = len(inacc[inacc['gps_perm_denied']==1])/n*100
-            use_curr = len(inacc[inacc['get_current_loc_clicked']==1])/n*100
-            return [loc_gran, loc_deni, gps_gran, gps_deni, use_curr]
-            
-        attr_labels = ["Location Granted", "Location Denied", "GPS Granted", "GPS Denied", 'Clicked "Use Current"']
-        fig_attr = go.Figure()
-        fig_attr.add_trace(go.Bar(name="Old UI", x=attr_labels, y=attr_metrics(old_del), marker_color=FALSE_CLR, text=[f"{v:.1f}%" for v in attr_metrics(old_del)], textposition="outside", width=0.35, offset=-0.18))
-        fig_attr.add_trace(go.Bar(name="New UI", x=attr_labels, y=attr_metrics(new_del), marker_color=TRUE_CLR, text=[f"{v:.1f}%" for v in attr_metrics(new_del)], textposition="outside", width=0.35, offset=0.18))
-        fig_attr.update_layout(**base_layout(height=380, barmode="overlay"), yaxis=dict(range=[0,105], title="% of Inaccurate Orders", gridcolor=GRID_CLR))
-        st.plotly_chart(fig_attr, use_container_width=True)
+        attr_data = fetch_inaccurate_attribution(start_date, end_date, selected_versions)
+        total_inaccurate = len(attr_data)
         
-        st.markdown('''
-        <div class="insight-box">
-            💡 <strong>Observation:</strong> Nearly 40% of the worst placements (>200m error) occurred when the user <strong>explicitly granted location permission</strong> and clicked "Use Current Location". This proves many severe cases are caused by highly inaccurate OS-level GPS fetching, which users confidently accept without verifying the pin.
-        </div>''', unsafe_allow_html=True)
+        if total_inaccurate == 0:
+            st.warning("No >200m inaccurate orders found for this selection.")
+        else:
+            grp_no_perm = [r for r in attr_data if r['provided_loc_perm'] == 0]
+            grp_perm = [r for r in attr_data if r['provided_loc_perm'] == 1]
+            grp_perm_gps = [r for r in grp_perm if r['conf_distance'] <= 1]
+            grp_perm_mischief = [r for r in grp_perm if r['conf_distance'] > 1]
+
+            gp1_pct = (len(grp_no_perm) / total_inaccurate) * 100
+            gp2a_pct = (len(grp_perm_gps) / total_inaccurate) * 100
+            gp2b_pct = (len(grp_perm_mischief) / total_inaccurate) * 100
+
+            c_1, c_2, c_3 = st.columns(3)
+            with c_1: st.metric("1. Missing Location Permission", f"{gp1_pct:.1f}%", f"{len(grp_no_perm)} orders", delta_color="off")
+            with c_2: st.metric("2A. Massive GPS Staleness", f"{gp2a_pct:.1f}%", f"{len(grp_perm_gps)} orders", delta_color="off")
+            with c_3: st.metric("2B. Mischievous / Override", f"{gp2b_pct:.1f}%", f"{len(grp_perm_mischief)} orders", delta_color="off")
+
+            st.divider()
+
+            col_a, col_b, col_c = st.columns(3)
+            with col_a:
+                st.markdown("**1. Missing Location Permission**")
+                gp1_moves_sum = sum(float(r.get('marker_moves', 0)) for r in grp_no_perm)
+                gp1_searches_sum = sum(float(r.get('map_searches', 0)) for r in grp_no_perm)
+                tot_events = gp1_moves_sum + gp1_searches_sum
+                moves_split = (gp1_moves_sum / tot_events * 100) if tot_events else 0
+                search_split = (gp1_searches_sum / tot_events * 100) if tot_events else 0
+                st.caption("Friction Usage Distribution:")
+                st.markdown(f"**{moves_split:.1f}%** Marker Drags")
+                st.markdown(f"**{search_split:.1f}%** Map Searches")
+                
+            with col_b:
+                st.markdown("**2A. Massive GPS Inaccuracy**")
+                valid_accs = [float(r['best_acc']) for r in grp_perm_gps if r.get('raw_best_acc', '') != '']
+                avg_acc = sum(valid_accs)/len(valid_accs) if valid_accs else 0
+                empty_pct = (sum(1 for r in grp_perm_gps if r.get('raw_best_acc', '') == '') / len(grp_perm_gps) * 100) if len(grp_perm_gps) else 0
+                st.caption("Background Attempt Quality:")
+                st.markdown(f"**{avg_acc:.1f}m** Avg 'Best' Acc attempt")
+                st.markdown(f"**{empty_pct:.1f}%** Failed to fetch")
+                
+            with col_c:
+                st.markdown("**2B. Mischievous / Override**")
+                bins = {'<50m': 0, '50-200m': 0, '>200m': 0}
+                n_b = len(grp_perm_mischief)
+                for r in grp_perm_mischief:
+                    d = float(r.get('conf_distance', 0))
+                    if d <= 50: bins['<50m'] += 1
+                    elif d <= 200: bins['50-200m'] += 1
+                    else: bins['>200m'] += 1
+                st.caption("Manual Drag Distance Buckets:")
+                st.markdown(f"**{bins['<50m']/n_b*100 if n_b else 0:.1f}%** dragged < 50m")
+                st.markdown(f"**{bins['50-200m']/n_b*100 if n_b else 0:.1f}%** dragged 50-200m")
+                st.markdown(f"**{bins['>200m']/n_b*100 if n_b else 0:.1f}%** dragged > 200m")
 
     else:
         st.warning("No tracking data available for the given criteria.")
