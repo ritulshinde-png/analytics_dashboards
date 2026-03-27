@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Feedback Board — Demand Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#16140f;--ink2:#4a4640;--ink3:#9c9790;
+  --paper:#f7f5f0;--paper2:#edeae3;--paper3:#e0ddd5;
+  --line:#d8d3ca;--surface:#fff;--accent:#c84b2f;
+  --r:10px;
+  --shadow:0 1px 4px rgba(22,20,15,.08),0 4px 20px rgba(22,20,15,.05);
+  --shadow-lg:0 8px 40px rgba(22,20,15,.14),0 2px 8px rgba(22,20,15,.07);
+}
+body{font-family:'Instrument Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* SETUP BANNER */
+#setupBanner{background:#fffbeb;border-bottom:1px solid #fde68a;padding:16px 24px;display:flex;align-items:flex-start;gap:12px}
+#setupBanner.hidden{display:none}
+.sb-icon{font-size:18px;flex-shrink:0;margin-top:2px}
+.sb-body{flex:1}.sb-body strong{font-size:14px;display:block;margin-bottom:5px;color:#92400e}
+.sb-body p{font-size:13px;color:#78350f;line-height:1.55}.sb-body a{color:#92400e;font-weight:600}
+.sb-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
+#tokenInput{flex:1;min-width:200px;padding:8px 12px;border:1.5px solid #fde68a;border-radius:8px;background:#fffbeb;font-family:monospace;font-size:13px;color:#78350f;outline:none}
+.sb-save{padding:8px 16px;background:#92400e;color:#fff;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.sb-close{background:none;border:none;cursor:pointer;font-size:20px;color:#92400e;flex-shrink:0;padding:0 2px;line-height:1;align-self:flex-start}
+
+/* PIN MODAL */
+#pinModal{position:fixed;inset:0;background:rgba(22,20,15,.55);z-index:500;display:none;align-items:center;justify-content:center;padding:24px}
+#pinModal.show{display:flex}
+.pin-card{background:var(--surface);border-radius:16px;padding:32px 28px;width:100%;max-width:360px;box-shadow:var(--shadow-lg);text-align:center}
+.pin-card h3{font-family:'Instrument Serif',serif;font-size:22px;font-weight:400;margin-bottom:8px}
+.pin-card p{font-size:13px;color:var(--ink2);margin-bottom:20px;line-height:1.55}
+#pinInput{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:var(--r);font-family:monospace;font-size:22px;letter-spacing:.25em;text-align:center;outline:none;background:var(--paper);color:var(--ink);margin-bottom:4px}
+#pinInput:focus{border-color:var(--ink)}
+#pinInput.wrong{border-color:#dc2626;animation:shake .35s ease}
+.pin-err{font-size:12px;color:#dc2626;margin-top:4px;margin-bottom:10px;min-height:18px}
+.pin-btns{display:flex;gap:8px;margin-top:10px}
+.pin-cancel{flex:1;padding:10px;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;color:var(--ink2)}
+.pin-go{flex:2;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:var(--r);font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+
+/* HEADER */
+header{background:var(--ink);color:var(--paper);padding:0 32px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.01em}
+.logo-mark{width:24px;height:24px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center}
+.logo-mark svg{width:12px;height:12px;fill:white}
+.hdr-right{display:flex;align-items:center;gap:10px}
+.hdr-badge{font-size:12px;color:#9c9790;background:rgba(255,255,255,.08);border-radius:20px;padding:3px 10px}
+.hdr-settings{background:none;border:none;cursor:pointer;color:#9c9790;font-size:15px;padding:5px;border-radius:6px;transition:color .15s;line-height:1}
+.hdr-settings:hover{color:#f7f5f0}
+
+/* MAIN */
+main{max-width:680px;margin:0 auto;padding:40px 24px 80px}
+
+/* HERO */
+.hero{margin-bottom:32px;animation:fadeUp .45s ease both}
+.hero h1{font-family:'Instrument Serif',serif;font-size:30px;font-weight:400;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px}
+.hero h1 em{font-style:italic;color:var(--accent)}
+.hero p{font-size:14px;color:var(--ink2);line-height:1.6}
+
+/* LAYOUT: form full width, leaderboard below */
+.page-grid{display:flex;flex-direction:column;gap:24px}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 28px 24px;box-shadow:var(--shadow)}
+.form-card{animation:fadeUp .45s .08s ease both}
+.field{margin-bottom:20px}
+.divider{height:1px;background:var(--line);margin:22px 0}
+label{display:block;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink2);margin-bottom:7px}
+label .opt{font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink3);font-size:12px}
+textarea,input[type=text]{width:100%;padding:11px 14px;border:1.5px solid var(--line);border-radius:var(--r);font-family:inherit;font-size:15px;color:var(--ink);background:var(--paper);outline:none;transition:border-color .15s,background .15s}
+textarea{resize:vertical;line-height:1.6}
+textarea:focus,input[type=text]:focus{border-color:var(--ink);background:var(--surface)}
+textarea::placeholder,input[type=text]::placeholder{color:var(--ink3)}
+
+/* SELECT */
+.select-wrap{position:relative}
+.select-display{width:100%;padding:11px 40px 11px 14px;border:1.5px solid var(--line);border-radius:var(--r);font-family:inherit;font-size:15px;color:var(--ink);background:var(--paper);cursor:pointer;display:flex;align-items:center;gap:10px;transition:border-color .15s,background .15s;user-select:none}
+.select-display:hover,.select-display.open{border-color:var(--ink);background:var(--surface)}
+.select-display .ph{color:var(--ink3)}
+.sel-arrow{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--ink3);font-size:11px;transition:transform .15s}
+.select-display.open+.sel-arrow{transform:translateY(-50%) rotate(180deg)}
+.sel-av{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;flex-shrink:0;color:white}
+.sel-drop{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-lg);z-index:200;max-height:240px;overflow-y:auto;display:none}
+.sel-drop.open{display:block}
+.sel-search{padding:10px 12px;border:none;border-bottom:1px solid var(--line);width:100%;font-family:inherit;font-size:14px;color:var(--ink);background:var(--surface);outline:none}
+.sel-search::placeholder{color:var(--ink3)}
+.sel-opt{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:14px;color:var(--ink);transition:background .1s}
+.sel-opt:hover{background:var(--paper2)}
+.sel-opt .on{flex:1}
+.sel-check{font-size:13px;color:var(--accent);display:none}
+.sel-opt.selected .sel-check{display:block}
+.saved-badge{display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--paper2);border:1px solid var(--line);border-radius:20px;font-size:13px;color:var(--ink)}
+.saved-badge.show{display:inline-flex}
+.saved-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:white;flex-shrink:0}
+.change-btn{background:none;border:none;cursor:pointer;font-size:11px;color:var(--ink3);text-decoration:underline;padding:0;margin-left:2px}
+.change-btn:hover{color:var(--accent)}
+
+/* CHIPS */
+.chip-group{display:flex;gap:8px;flex-wrap:wrap}
+.chip{padding:8px 14px;border:1.5px solid var(--line);border-radius:30px;font-size:13px;font-weight:500;cursor:pointer;background:var(--paper);color:var(--ink2);transition:border-color .15s,background .15s,color .15s;user-select:none}
+.chip:hover{border-color:var(--ink2);color:var(--ink)}
+.chip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.area-chip{padding:8px 14px;border:1.5px solid var(--line);border-radius:30px;font-size:13px;font-weight:500;cursor:pointer;background:var(--paper);color:var(--ink2);transition:border-color .15s,background .15s,color .15s;user-select:none}
+.area-chip:hover{border-color:var(--ink2);color:var(--ink)}
+.area-chip.active{color:#fff;border-color:transparent}
+.area-chip.other-chip{border-style:dashed}
+.area-chip.other-chip.active{background:var(--ink);border-style:solid;border-color:var(--ink)}
+.other-input-wrap{margin-top:10px;display:none}
+.other-input-wrap.show{display:block}
+.field-err{font-size:12px;color:#dc2626;margin-top:6px;display:none}
+.field-err.show{display:block}
+
+/* DROPZONE */
+.dropzone{border:1.5px dashed var(--line);border-radius:var(--r);padding:26px 20px;text-align:center;cursor:pointer;background:var(--paper);transition:border-color .15s,background .15s;position:relative}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:#fdf5f3}
+.dropzone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.dz-icon{font-size:26px;display:block;margin-bottom:7px}
+.dz-label{font-size:14px;font-weight:500;color:var(--ink2)}
+.dz-hint{font-size:12px;color:var(--ink3);margin-top:3px}
+.file-list{margin-top:10px;display:flex;flex-direction:column;gap:7px}
+.file-chip{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--paper2);border:1px solid var(--line);border-radius:8px}
+.file-thumb{width:34px;height:34px;border-radius:6px;flex-shrink:0;background:var(--paper3);overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:16px}
+.file-thumb img{width:100%;height:100%;object-fit:cover}
+.file-name{flex:1;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file-size{font-size:11px;color:var(--ink3);flex-shrink:0}
+.file-del{background:none;border:none;cursor:pointer;color:var(--ink3);font-size:18px;line-height:1;padding:0 3px;flex-shrink:0}
+.file-del:hover{color:var(--accent)}
+.prog-wrap{margin-top:10px;display:none}.prog-wrap.show{display:block}
+.prog-track{height:3px;background:var(--paper3);border-radius:2px;overflow:hidden}
+.prog-bar{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .3s ease}
+.prog-text{font-size:12px;color:var(--ink3);margin-top:5px;text-align:center}
+
+/* SUBMIT */
+.submit-btn{width:100%;padding:13px 20px;background:var(--ink);color:white;border:none;border-radius:var(--r);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:9px;margin-top:6px}
+.submit-btn:hover:not(:disabled){background:#2a2820}
+.submit-btn:active:not(:disabled){transform:scale(.99)}
+.submit-btn:disabled{opacity:.5;cursor:not-allowed}
+.spinner{width:15px;height:15px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+.submitting .spinner{display:block}.submitting .btn-label{display:none}
+.kbd-hint{text-align:center;font-size:12px;color:var(--ink3);margin-top:8px}
+kbd{background:var(--paper2);border:1px solid var(--line);padding:1px 6px;border-radius:4px;font-size:11px}
+
+/* SUCCESS */
+.success-card{display:none;animation:fadeUp .4s ease both;text-align:center;padding:40px 28px}
+.success-card.show{display:block}
+.s-ring{width:56px;height:56px;background:#d5f2e0;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;font-size:26px}
+.success-card h2{font-family:'Instrument Serif',serif;font-size:26px;font-weight:400;margin-bottom:10px}
+.success-card p{font-size:14px;color:var(--ink2);line-height:1.65;margin-bottom:24px}
+.task-link{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border:1.5px solid var(--line);border-radius:8px;font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;background:var(--paper);transition:border-color .15s;margin-bottom:14px}
+.task-link:hover{border-color:var(--ink)}
+.reset-btn{display:block;width:100%;padding:12px;margin-top:4px;background:var(--paper2);border:1px solid var(--line);border-radius:var(--r);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;color:var(--ink);transition:background .15s}
+.reset-btn:hover{background:var(--paper3)}
+
+/* ── LEADERBOARD ── */
+.lb-card{animation:fadeUp .45s .15s ease both}
+.lb-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.lb-title{font-family:'Instrument Serif',serif;font-size:20px;font-weight:400}
+.lb-refresh{background:none;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-family:inherit;font-size:12px;color:var(--ink2);cursor:pointer;display:flex;align-items:center;gap:5px;transition:border-color .15s}
+.lb-refresh:hover{border-color:var(--ink)}
+.lb-refresh.spinning svg{animation:spin .7s linear infinite}
+
+/* Date filter */
+.lb-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.date-pill{padding:6px 12px;border:1.5px solid var(--line);border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;background:var(--paper);color:var(--ink2);transition:border-color .15s,background .15s,color .15s;user-select:none}
+.date-pill:hover{border-color:var(--ink2)}
+.date-pill.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* Table */
+.lb-table-wrap{overflow-x:auto}
+.lb-table{width:100%;border-collapse:collapse;font-size:13px}
+.lb-table th{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink3);padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+.lb-table td{padding:10px 10px;border-bottom:1px solid var(--paper2);vertical-align:middle}
+.lb-table tr:last-child td{border-bottom:none}
+.lb-table tr:hover td{background:var(--paper)}
+.lb-name{display:flex;align-items:center;gap:8px;font-weight:500}
+.lb-av{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:white;flex-shrink:0}
+.lb-num{text-align:center;font-weight:600;color:var(--ink)}
+.lb-num-sm{text-align:center;color:var(--ink2)}
+.lb-resolved{text-align:center;color:#1a6b3c;font-weight:500}
+.rank-1{color:#d4a520;font-weight:700}
+.rank-2{color:#9c9790;font-weight:600}
+.rank-3{color:#c05e20;font-weight:600}
+.lb-empty{text-align:center;padding:32px;color:var(--ink3);font-size:14px}
+.lb-loading{text-align:center;padding:32px;color:var(--ink3);font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px}
+.lb-loading-spin{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--ink3);border-radius:50%;animation:spin .7s linear infinite}
+
+/* TOASTS */
+.toasts{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:999;display:flex;flex-direction:column;gap:8px;align-items:center;pointer-events:none}
+.toast{padding:11px 20px;border-radius:30px;font-size:14px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;transform:translateY(10px);transition:opacity .22s,transform .22s;max-width:400px;text-align:center;pointer-events:auto}
+.toast.in{opacity:1;transform:translateY(0)}
+.toast.ok{background:var(--ink);color:#fff}
+.toast.err{background:#fef2f2;color:#9b1c1c;border:1px solid #fecaca}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style>
+</head>
+<body>
+
+<!-- SETUP BANNER -->
+<div id="setupBanner" class="hidden">
+  <span class="sb-icon">🔑</span>
+  <div class="sb-body">
+    <strong>Admin setup: ClickUp API token</strong>
+    <p>Go to <a href="https://app.clickup.com/settings/apps" target="_blank">ClickUp → Settings → Apps → API Token</a>. Stored only in this browser.</p>
+    <div class="sb-row">
+      <input type="text" id="tokenInput" placeholder="pk_XXXXXXXXXXXXXXXXXX" spellcheck="false"/>
+      <button class="sb-save" onclick="saveToken()">Save →</button>
+    </div>
+  </div>
+  <button class="sb-close" onclick="hideBanner()">×</button>
+</div>
+
+<!-- PIN MODAL -->
+<div id="pinModal">
+  <div class="pin-card">
+    <h3>Admin access</h3>
+    <p>Enter the admin PIN to access token settings.</p>
+    <input type="password" id="pinInput" placeholder="····" maxlength="6"
+      oninput="clearPinErr()" onkeydown="if(event.key==='Enter')checkPin()"/>
+    <div class="pin-err" id="pinErr"></div>
+    <div class="pin-btns">
+      <button class="pin-cancel" onclick="closePinModal()">Cancel</button>
+      <button class="pin-go" onclick="checkPin()">Unlock →</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-mark">
+      <svg viewBox="0 0 14 14"><rect x="1" y="2" width="12" height="1.5" rx=".75"/><rect x="1" y="6" width="12" height="1.5" rx=".75"/><rect x="1" y="10" width="7" height="1.5" rx=".75"/></svg>
+    </div>
+    Dog-Fooding Feedback
+  </div>
+  <div class="hdr-right">
+    <span class="hdr-badge">Demand Platform</span>
+    <button class="hdr-settings" onclick="requestSettings()" title="Admin settings">⚙</button>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <h1>Found something <em>worth fixing?</em></h1>
+    <p>Submit feedback to improve our App. Add screenshots or recordings for more context.</p>
+  </div>
+
+  <div class="page-grid">
+
+    <!-- ── FORM ── -->
+    <div class="card form-card" id="formCard">
+
+        <div class="field">
+          <label>Who are you?</label>
+          <div class="saved-badge" id="savedBadge">
+            <div class="saved-av" id="savedAv"></div>
+            <span id="savedName"></span>
+            <button class="change-btn" onclick="changeUser()">change</button>
+          </div>
+          <div id="pickerWrap">
+            <div class="select-wrap" id="selWrap">
+              <div class="select-display" id="selDisplay" onclick="toggleDrop()">
+                <span class="ph">Select your name…</span>
+              </div>
+              <span class="sel-arrow">▾</span>
+              <div class="sel-drop" id="selDrop">
+                <input class="sel-search" id="selSearch" placeholder="Search name…" oninput="filterOpts()" onclick="event.stopPropagation()"/>
+                <div id="optsList"></div>
+              </div>
+            </div>
+            <div class="field-err" id="userErr">Please select your name.</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="field">
+          <label>Which platforms issue are you reporting?</label>
+          <div class="chip-group">
+            <div class="chip" data-val="Android" onclick="togglePlat(this)">Android</div>
+            <div class="chip" data-val="iOS" onclick="togglePlat(this)">iOS</div>
+            <div class="chip" data-val="BE" onclick="togglePlat(this)">BE</div>
+            <div class="chip" data-val="Web" onclick="togglePlat(this)">Web</div>
+          </div>
+          <div class="field-err" id="platErr">Please select at least one platform.</div>
+        </div>
+
+        <div class="field">
+          <label>Which product area does this issue belong to?</label>
+          <div class="chip-group" id="areaGroup"></div>
+          <div class="other-input-wrap" id="otherWrap">
+            <input type="text" id="otherAreaInput" placeholder="Describe the area…" maxlength="80"/>
+          </div>
+          <div class="field-err" id="areaErr">Please select an area.</div>
+        </div>
+
+        <div class="field">
+          <label>Please type the issue you want to report <span class="opt">(required)</span></label>
+          <textarea id="iFeedback" rows="4"
+            placeholder="Describe the issue — what you saw, what you expected, and steps to reproduce…"></textarea>
+        </div>
+
+        <div class="field">
+          <label>Add screenshots/videos of the reported issue <span class="opt">(optional)</span></label>
+          <div class="dropzone" id="dz">
+            <input type="file" id="fi" multiple accept="image/*,video/*"/>
+            <span class="dz-icon">📎</span>
+            <div class="dz-label">Click to attach or drag &amp; drop</div>
+            <div class="dz-hint">JPG · PNG · GIF · MP4 · MOV · WebM</div>
+          </div>
+          <div class="file-list" id="fileList"></div>
+          <div class="prog-wrap" id="pw">
+            <div class="prog-track"><div class="prog-bar" id="pb"></div></div>
+            <div class="prog-text" id="pt"></div>
+          </div>
+        </div>
+
+        <button class="submit-btn" id="submitBtn" onclick="doSubmit()">
+          <div class="spinner"></div>
+          <span class="btn-label">Submit to ClickUp →</span>
+        </button>
+        <p class="kbd-hint">or <kbd>⌘ Enter</kbd> / <kbd>Ctrl Enter</kbd></p>
+      </div>
+
+      <div class="card success-card" id="successCard">
+        <div class="s-ring">✓</div>
+        <h2>Feedback submitted!</h2>
+        <p>Added to the Dog-Fooding board with status <strong>Open</strong>.<br/>The team will triage it soon.</p>
+        <a id="taskLink" href="#" target="_blank" rel="noopener" class="task-link">↗ View task in ClickUp</a>
+        <button class="reset-btn" onclick="doReset()">Submit another →</button>
+      </div>
+
+    <!-- ── LEADERBOARD ── -->
+    <div class="card lb-card" id="lbCard">
+      <div class="lb-header">
+        <div class="lb-title">Leaderboard</div>
+        <button class="lb-refresh" id="refreshBtn" onclick="loadLeaderboard()" title="Refresh">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M10 2.5A4.5 4.5 0 1 0 11 6"/>
+            <path d="M11 2.5V1M11 2.5H9.5"/>
+          </svg>
+          Refresh
+        </button>
+      </div>
+
+      <!-- Date group filter -->
+      <div class="lb-filters" id="lbFilters">
+        <div class="date-pill active" data-date="all" onclick="filterDate(this)">All time</div>
+      </div>
+
+      <div id="lbBody">
+        <div class="lb-loading"><div class="lb-loading-spin"></div> Loading…</div>
+      </div>
+    </div>
+
+  </div><!-- end page-grid -->
+</main>
+
+<div class="toasts" id="toasts"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────
+const LIST_ID      = '901614207403';
+const TOKEN_KEY    = 'cu_tok_override'; // localStorage key for admin-updated token
+const USER_KEY     = 'cu_user';
+const CF_DATE      = '6b3e71c7-f788-4b9c-b8da-b0451db09d52';
+const CF_AREA      = '8995e800-51c5-46ea-a586-ab39c8ce0326';
+const CF_REPORTED  = '4fce16f5-95e6-45a7-abd3-d375ef56a6a8';
+const TAG_OTHERS   = 'Others';
+const ADMIN_PIN    = '1234';
+// Token: admin can override via ⚙ UI (saved to localStorage on their browser only).
+// Everyone else uses the hardcoded default below.
+// To update for all users: change DEFAULT_TOKEN here and re-upload the HTML to Netlify.
+const DEFAULT_TOKEN = 'pk_94932967_TPN3WP90DCOOBMMIBCHI15F1T86CZRYL';
+function getToken(){ return localStorage.getItem(TOKEN_KEY) || DEFAULT_TOKEN; }
+
+// ── AREA OPTIONS ──────────────────────────────────────────────────────
+const AREAS = [
+  {id:'aaf986b2-72cb-48d8-80b2-def30326d128', name:'Signup',          color:'#d43d6a'},
+  {id:'0a6b26a4-dab0-48fd-a18f-b6499acb6214', name:'Store Assignment',color:'#6340cc'},
+  {id:'689c8191-bba2-4174-ac0f-d487d0e54c10', name:'Search',          color:'#5555aa'},
+  {id:'f1ed23ac-1074-406c-978d-3f8b3c6dd957', name:'Homepage',        color:'#5a78b8'},
+  {id:'4f76d9be-4caa-43d6-926b-4c7abb24eeff', name:'Cartpage',        color:'#3d7eb8'},
+  {id:'45497435-c450-4c12-b8d9-b99327de87e2', name:'Post Order',      color:'#2d8a7a'},
+  {id:'270c5db8-ebba-45a4-b4f2-a8188646edb0', name:'Payments',        color:'#2d8a58'},
+  {id:'c39c3bef-fe90-4065-adb2-c38fcf36e309', name:'Profile',         color:'#a07c1a'},
+  {id:'4a813ff5-356d-430a-8f18-2a678ae72870', name:'Address',         color:'#c05e20'},
+  {id:'other', name:'Other', color:'#4a4640'},
+];
+
+// ── MEMBERS ───────────────────────────────────────────────────────────
+const MEMBERS = [
+  {id:94910495,  name:"Abhay Jain"},
+  {id:182536577, name:"Aditya Gupta"},
+  {id:88929630,  name:"Akhil Dhatterwal"},
+  {id:94813515,  name:"Amulya Paritosh"},
+  {id:95013266,  name:"Atul Kumar"},
+  {id:200661376, name:"Ayush Nimiwal"},
+  {id:88973468,  name:"Ayush Umrao"},
+  {id:95044817,  name:"Basavaraju B"},
+  {id:94932962,  name:"Bhagyesh Badwe"},
+  {id:61382904,  name:"Chandan Kumar"},
+  {id:7218086,   name:"Chetan Garg"},
+  {id:88806637,  name:"Diksha Chandna"},
+  {id:94953807,  name:"Dipendra Sharma"},
+  {id:94910496,  name:"Divya Yadav"},
+  {id:95075819,  name:"Diya Kansal"},
+  {id:94910085,  name:"Gaurav Singh"},
+  {id:95057023,  name:"Harsh Gupta"},
+  {id:95046332,  name:"Hrishikesh Prasad"},
+  {id:95044825,  name:"Jayadev Nayak"},
+  {id:88921800,  name:"Jinal Shah"},
+  {id:100950696, name:"Kartikey Srivastava"},
+  {id:95042734,  name:"Konda Sujith"},
+  {id:94910088,  name:"Manasvi Soni"},
+  {id:95042725,  name:"Manish Agarwal"},
+  {id:61359730,  name:"Mayank Jain"},
+  {id:89042601,  name:"Mayank Nagre"},
+  {id:95013347,  name:"Mudit Chugh"},
+  {id:95042739,  name:"Prasanth Boggarapu"},
+  {id:206547966, name:"Prashanth Kadari"},
+  {id:95006989,  name:"Pratyush Mangal"},
+  {id:95087338,  name:"Priyanshu Kumar"},
+  {id:89052091,  name:"Priyanshu Verma"},
+  {id:94965702,  name:"Rahul Saw"},
+  {id:95013340,  name:"Ranjeet Kumar"},
+  {id:95046331,  name:"Ravi Shankar"},
+  {id:94932967,  name:"Ritul Shinde"},
+  {id:95046330,  name:"Ruchitha Vadde"},
+  {id:94961935,  name:"Sai Kiran"},
+  {id:94895377,  name:"Saransh Kumar"},
+  {id:242501616, name:"Sarthak Puri"},
+  {id:272696171, name:"Saurabh Dhingra"},
+  {id:94943946,  name:"Satyam Chauhan"},
+  {id:95006978,  name:"Shatank Gupta"},
+  {id:88872193,  name:"Shivam Chaturvedi"},
+  {id:170477923, name:"Shobhit Singh"},
+  {id:94826670,  name:"Shubham Sharma"},
+  {id:95042736,  name:"Sneha Pulikkal"},
+  {id:95042737,  name:"Swati Rani"},
+  {id:188494233, name:"Tejash Seth"},
+  {id:95042738,  name:"Unais Oravakkottil"},
+  {id:95076180,  name:"Veeresh Kukudi"},
+  {id:73255914,  name:"Vicky Das"},
+  {id:88974137,  name:"Vilas Malhotra"},
+  {id:272696166, name:"Utkarsh Bhatt"},
+  {id:67443867,  name:"Utkarsh Bagri"},
+  {id:94934329,  name:"Yash Agrawal"},
+].sort((a,b)=>a.name.localeCompare(b.name));
+
+const COLORS=['#e05252','#e07b52','#d4a520','#4caf7d','#2196b0','#7c52c8','#c8528c','#52a0c8'];
+const aC = id => COLORS[Math.abs(id)%COLORS.length];
+const aI = name => name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+
+// ── STATE ─────────────────────────────────────────────────────────────
+const files=[], platforms=new Set();
+let selectedArea=null, selectedUser=null, dropOpen=false;
+let allTasks=[], activeDateFilter='all';
+
+// ── INIT ──────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', ()=>{
+  hideBanner();
+  buildOpts();
+  buildAreaChips();
+  loadLeaderboard();
+  try{const u=JSON.parse(localStorage.getItem(USER_KEY)||'null');if(u?.id)showSaved(u)}catch(e){}
+});
+
+// ── AREA CHIPS ────────────────────────────────────────────────────────
+function buildAreaChips(){
+  const g=document.getElementById('areaGroup');
+  AREAS.forEach(a=>{
+    const el=document.createElement('div');
+    el.className='area-chip'+(a.id==='other'?' other-chip':'');
+    el.textContent=a.name; el.dataset.id=a.id;
+    el.onclick=()=>selectArea(a,el);
+    g.appendChild(el);
+  });
+}
+function selectArea(a,el){
+  document.querySelectorAll('.area-chip').forEach(c=>{c.classList.remove('active');c.style.background='';c.style.borderColor=''});
+  selectedArea=a; el.classList.add('active'); el.style.background=a.color;
+  document.getElementById('areaErr').classList.remove('show');
+  const ow=document.getElementById('otherWrap');
+  if(a.id==='other'){ow.classList.add('show');document.getElementById('otherAreaInput').focus()}
+  else{ow.classList.remove('show');document.getElementById('otherAreaInput').value=''}
+}
+
+// ── PLATFORM CHIPS ────────────────────────────────────────────────────
+function togglePlat(el){
+  const v=el.dataset.val;
+  if(platforms.has(v)){platforms.delete(v);el.classList.remove('active')}
+  else{platforms.add(v);el.classList.add('active')}
+  document.getElementById('platErr').classList.remove('show');
+}
+const getPrefix=()=>['Android','iOS','BE','Web'].filter(p=>platforms.has(p)).join('+');
+
+// ── NAME DROPDOWN ─────────────────────────────────────────────────────
+function buildOpts(q=''){
+  const list=document.getElementById('optsList');list.innerHTML='';
+  MEMBERS.filter(m=>m.name.toLowerCase().includes(q.toLowerCase())).forEach(m=>{
+    const d=document.createElement('div');
+    d.className='sel-opt'+(selectedUser?.id===m.id?' selected':'');
+    d.innerHTML=`<div class="sel-av" style="background:${aC(m.id)}">${aI(m.name)}</div><span class="on">${m.name}</span><span class="sel-check">✓</span>`;
+    d.onclick=()=>pickUser(m); list.appendChild(d);
+  });
+}
+function filterOpts(){buildOpts(document.getElementById('selSearch').value)}
+function toggleDrop(){
+  dropOpen=!dropOpen;
+  document.getElementById('selDrop').classList.toggle('open',dropOpen);
+  document.getElementById('selDisplay').classList.toggle('open',dropOpen);
+  if(dropOpen)setTimeout(()=>document.getElementById('selSearch').focus(),40);
+}
+function closeDrop(){dropOpen=false;document.getElementById('selDrop').classList.remove('open');document.getElementById('selDisplay').classList.remove('open')}
+function pickUser(m){
+  selectedUser=m;closeDrop();
+  document.getElementById('userErr').classList.remove('show');
+  document.getElementById('selDisplay').innerHTML=`<div class="sel-av" style="background:${aC(m.id)}">${aI(m.name)}</div><span>${m.name}</span>`;
+  buildOpts();
+}
+function showSaved(u){
+  selectedUser=u;document.getElementById('pickerWrap').style.display='none';
+  const b=document.getElementById('savedBadge');b.classList.add('show');
+  const av=document.getElementById('savedAv');av.style.background=aC(u.id);av.textContent=aI(u.name);
+  document.getElementById('savedName').textContent=u.name;
+}
+function changeUser(){
+  selectedUser=null;document.getElementById('savedBadge').classList.remove('show');
+  document.getElementById('pickerWrap').style.display='';
+  document.getElementById('selDisplay').innerHTML='<span class="ph">Select your name…</span>';
+  document.getElementById('selSearch').value='';buildOpts();
+}
+document.addEventListener('click',e=>{if(!document.getElementById('selWrap')?.contains(e.target))closeDrop()});
+
+// ── ADMIN / TOKEN ─────────────────────────────────────────────────────
+function requestSettings(){
+  document.getElementById('pinInput').value='';document.getElementById('pinErr').textContent='';
+  document.getElementById('pinInput').classList.remove('wrong');
+  document.getElementById('pinModal').classList.add('show');
+  setTimeout(()=>document.getElementById('pinInput').focus(),60);
+}
+function closePinModal(){document.getElementById('pinModal').classList.remove('show')}
+function clearPinErr(){document.getElementById('pinErr').textContent='';document.getElementById('pinInput').classList.remove('wrong')}
+function checkPin(){
+  if(document.getElementById('pinInput').value===ADMIN_PIN){closePinModal();showBanner()}
+  else{const i=document.getElementById('pinInput');i.classList.add('wrong');document.getElementById('pinErr').textContent='Incorrect PIN.';i.value='';setTimeout(()=>i.classList.remove('wrong'),400)}
+}
+function saveToken(){
+  const v=document.getElementById('tokenInput').value.trim();
+  if(!v){toast('Paste your token first','err');return}
+  if(!v.startsWith('pk_')){toast('Token should start with pk_','err');return}
+  localStorage.setItem(TOKEN_KEY,v);
+  hideBanner();
+  toast('Token updated ✓','ok');
+  loadLeaderboard();
+}
+function showBanner(){document.getElementById('tokenInput').value=getToken();document.getElementById('setupBanner').classList.remove('hidden');setTimeout(()=>document.getElementById('tokenInput').focus(),60)}
+function hideBanner(){document.getElementById('setupBanner').classList.add('hidden')}
+
+// ── FILES ─────────────────────────────────────────────────────────────
+const dz=document.getElementById('dz'),fi=document.getElementById('fi');
+fi.addEventListener('change',e=>{addFiles(Array.from(e.target.files));fi.value=''});
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');addFiles(Array.from(e.dataTransfer.files))});
+function addFiles(nf){nf.forEach(f=>{if(!files.find(x=>x.name===f.name&&x.size===f.size))files.push(f)});renderFiles()}
+function removeFile(i){files.splice(i,1);renderFiles()}
+function renderFiles(){
+  const l=document.getElementById('fileList');l.innerHTML='';
+  files.forEach((f,i)=>{
+    const c=document.createElement('div');c.className='file-chip';
+    const t=document.createElement('div');t.className='file-thumb';
+    if(f.type.startsWith('image/')){const img=document.createElement('img');img.src=URL.createObjectURL(f);t.appendChild(img)}
+    else t.textContent=f.type.startsWith('video/')?'🎥':'📄';
+    const n=f.name.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    c.innerHTML=`<div class="file-name">${n}</div><div class="file-size">${(f.size/1024/1024).toFixed(1)} MB</div><button class="file-del" onclick="removeFile(${i})">×</button>`;
+    c.insertBefore(t,c.firstChild);l.appendChild(c);
+  });
+}
+
+// ── PROGRESS / TOAST ─────────────────────────────────────────────────
+function setProg(p,t){document.getElementById('pb').style.width=p+'%';document.getElementById('pt').textContent=t||'';document.getElementById('pw').classList.toggle('show',p>0&&p<100)}
+function toast(msg,type='ok'){
+  const w=document.getElementById('toasts');
+  const t=document.createElement('div');t.className=`toast ${type}`;t.textContent=msg;
+  w.appendChild(t);requestAnimationFrame(()=>requestAnimationFrame(()=>t.classList.add('in')));
+  setTimeout(()=>{t.classList.remove('in');setTimeout(()=>t.remove(),300)},4500);
+}
+
+// ── CLICKUP API ───────────────────────────────────────────────────────
+async function cuPost(path,body){
+  const tok=getToken();if(!tok)throw new Error('no-token');
+  const res=await fetch(`https://api.clickup.com/api/v2${path}`,{
+    method:'POST',headers:{Authorization:tok,'Content-Type':'application/json'},body:JSON.stringify(body)
+  });
+  const d=await res.json();if(!res.ok)throw new Error(d.err||d.ECODE||`HTTP ${res.status}`);
+  return d;
+}
+async function cuGet(path){
+  const tok=getToken();if(!tok)throw new Error('no-token');
+  const res=await fetch(`https://api.clickup.com/api/v2${path}`,{headers:{Authorization:tok}});
+  const d=await res.json();if(!res.ok)throw new Error(d.err||`HTTP ${res.status}`);
+  return d;
+}
+async function cuUpload(taskId,file){
+  const fd=new FormData();fd.append('attachment',file,file.name);
+  const res=await fetch(`https://api.clickup.com/api/v2/task/${taskId}/attachment`,{method:'POST',headers:{Authorization:getToken()},body:fd});
+  if(!res.ok)console.warn('Attachment failed:',file.name);
+}
+
+// ── SUBMIT ────────────────────────────────────────────────────────────
+async function doSubmit(){
+  const feedback=document.getElementById('iFeedback').value.trim();
+  const otherArea=document.getElementById('otherAreaInput').value.trim();
+
+  if(!selectedUser){document.getElementById('userErr').classList.add('show');toast('Please select your name','err');return}
+  if(platforms.size===0){document.getElementById('platErr').classList.add('show');toast('Select at least one platform','err');return}
+  if(!selectedArea){document.getElementById('areaErr').classList.add('show');toast('Please select an area','err');return}
+  if(selectedArea.id==='other'&&!otherArea){toast('Please describe the area','err');document.getElementById('otherAreaInput').focus();return}
+  if(!feedback){toast('Please enter your feedback','err');document.getElementById('iFeedback').focus();return}
+  if(!getToken()){toast('No API token set — please contact admin','err');return}
+
+  localStorage.setItem(USER_KEY,JSON.stringify(selectedUser));
+  showSaved(selectedUser);
+
+  const btn=document.getElementById('submitBtn');
+  btn.disabled=true;btn.classList.add('submitting');
+
+  const platList = ['Android','iOS','BE','Web'].filter(p=>platforms.has(p));
+  const areaName = selectedArea.id==='other' ? otherArea : selectedArea.name;
+  const short    = feedback.length>80?feedback.slice(0,77)+'…':feedback;
+  const isOther  = selectedArea.id==='other';
+  const tags     = isOther ? [TAG_OTHERS] : [];
+
+  const customFields=[
+    {id:CF_REPORTED, value:selectedUser.name},
+    {id:CF_DATE,     value:Date.now()},
+  ];
+  if(!isOther) customFields.push({id:CF_AREA, value:selectedArea.id});
+
+  const createdTasks=[];
+
+  try{
+    const total = platList.length;
+
+    for(let i=0;i<total;i++){
+      const plat = platList[i];
+      const title = `${plat}: ${short}`;
+      const desc  = `${feedback}\n\n---\nPlatform: ${plat}\nArea: ${areaName}`;
+
+      setProg(
+        Math.round((i/total)*60)+5,
+        total>1 ? `Creating task ${i+1} of ${total} (${plat})…` : 'Creating task…'
+      );
+
+      const task=await cuPost(`/list/${LIST_ID}/task`,{
+        name:title,
+        description:desc,
+        status:'Open',
+        notify_all:false,
+        tags,
+        custom_fields:customFields
+      });
+      createdTasks.push(task);
+
+      // If "Other" area → add comment with typed area text
+      if(isOther){
+        try{
+          await cuPost(`/task/${task.id}/comment`,{
+            comment_text:`📍 Area (Other): ${otherArea}`,
+            notify_all:false
+          });
+        }catch(e){console.warn('Other comment failed:',e)}
+      }
+    }
+
+    // Upload attachments to ALL created tasks
+    if(files.length>0){
+      for(let ti=0;ti<createdTasks.length;ti++){
+        for(let fIdx=0;fIdx<files.length;fIdx++){
+          const overall = createdTasks.length*files.length;
+          const done    = ti*files.length+fIdx;
+          setProg(60+Math.round(done/overall*38), `Uploading ${files[fIdx].name}…`);
+          await cuUpload(createdTasks[ti].id, files[fIdx]);
+        }
+      }
+    }
+
+    setProg(100);
+    document.getElementById('formCard').style.display='none';
+    const sc=document.getElementById('successCard');
+    sc.classList.add('show');
+
+    // If multiple tasks, link to the list view; if single, link directly
+    document.getElementById('taskLink').href = createdTasks.length===1
+      ? createdTasks[0].url
+      : `https://app.clickup.com/43325543/v/li/${LIST_ID}`;
+
+    // Update success message for multi-task
+    sc.querySelector('p').innerHTML = createdTasks.length>1
+      ? `Created <strong>${createdTasks.length} tasks</strong> (one per platform) with status <strong>Open</strong>.<br/>The team will triage them soon.`
+      : `Added to the Dog-Fooding board with status <strong>Open</strong>.<br/>The team will triage it soon.`;
+
+    loadLeaderboard();
+
+  }catch(err){
+    console.error(err);
+    if(err.message==='no-token'||err.message.includes('401')||err.message.includes('403')){toast('Session error — please ask admin to refresh the API token','err')}
+    else if(err.message.includes('fetch')||err.message.includes('Network')){toast('Network error — check connection','err')}
+    else toast('Error: '+err.message,'err');
+    btn.disabled=false;btn.classList.remove('submitting');setProg(0);
+  }
+}
+
+// ── RESET ─────────────────────────────────────────────────────────────
+function doReset(){
+  document.getElementById('iFeedback').value='';
+  document.getElementById('otherAreaInput').value='';
+  document.getElementById('otherWrap').classList.remove('show');
+  files.length=0;renderFiles();
+  platforms.clear();
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  document.querySelectorAll('.area-chip').forEach(c=>{c.classList.remove('active');c.style.background='';c.style.borderColor=''});
+  selectedArea=null;
+  document.getElementById('platErr').classList.remove('show');
+  document.getElementById('areaErr').classList.remove('show');
+  document.getElementById('formCard').style.display='block';
+  document.getElementById('successCard').classList.remove('show');
+  const btn=document.getElementById('submitBtn');btn.disabled=false;btn.classList.remove('submitting');setProg(0);
+}
+
+// ── LEADERBOARD ───────────────────────────────────────────────────────
+
+async function fetchAllTasks(){
+  // Paginate through all tasks in the list
+  let page=0, tasks=[];
+  while(true){
+    const data=await cuGet(`/list/${LIST_ID}/task?include_closed=true&subtasks=false&page=${page}&fields=name,status,custom_fields,date_created`);
+    const batch=data.tasks||[];
+    tasks=[...tasks,...batch];
+    if(batch.length<100)break;
+    page++;
+  }
+  return tasks;
+}
+
+function getReportedBy(task){
+  const cf=task.custom_fields?.find(f=>f.id===CF_REPORTED);
+  return cf?.value||'';
+}
+
+function getReportedOn(task){
+  const cf=task.custom_fields?.find(f=>f.id===CF_DATE);
+  return cf?.value ? Number(cf.value) : Number(task.date_created);
+}
+
+function toDateKey(ts){
+  const d=new Date(ts);
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+async function loadLeaderboard(){
+  if(!getToken()){renderLbEmpty('Add your API token to see the leaderboard.');return}
+  const btn=document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  document.getElementById('lbBody').innerHTML=`<div class="lb-loading"><div class="lb-loading-spin"></div> Loading…</div>`;
+  try{
+    allTasks=await fetchAllTasks();
+    buildDateFilters();
+    renderLeaderboard();
+  }catch(e){
+    document.getElementById('lbBody').innerHTML=`<div class="lb-empty">Failed to load: ${e.message}</div>`;
+  }finally{
+    btn.classList.remove('spinning');
+  }
+}
+
+function buildDateFilters(){
+  const dates=new Set();
+  allTasks.forEach(t=>{
+    const ts=getReportedOn(t);
+    if(ts)dates.add(toDateKey(ts));
+  });
+  const sorted=[...dates].sort((a,b)=>new Date(b)-new Date(a));
+
+  const container=document.getElementById('lbFilters');
+  container.innerHTML='<div class="date-pill active" data-date="all" onclick="filterDate(this)">All time</div>';
+  sorted.forEach(d=>{
+    const el=document.createElement('div');
+    el.className='date-pill';el.dataset.date=d;
+    el.textContent=d;el.onclick=()=>filterDate(el);
+    container.appendChild(el);
+  });
+  activeDateFilter='all';
+}
+
+function filterDate(el){
+  document.querySelectorAll('.date-pill').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  activeDateFilter=el.dataset.date;
+  renderLeaderboard();
+}
+
+function renderLeaderboard(){
+  // Filter tasks to exclude test tasks and empty reporter names
+  const validTasks=allTasks.filter(t=>{
+    const name=t.name||'';
+    if(name.startsWith('🧪'))return false; // test tasks
+    const reporter=getReportedBy(t);
+    return reporter&&reporter.trim().length>0;
+  });
+
+  // Build global stats per reporter (all time)
+  const globalStats={};
+  validTasks.forEach(t=>{
+    const reporter=getReportedBy(t).trim();
+    if(!reporter)return;
+    if(!globalStats[reporter])globalStats[reporter]={total:0,resolved:0};
+    globalStats[reporter].total++;
+    const st=(t.status?.status||t.status||'').toLowerCase();
+    if(st==='resolved'||st==='done')globalStats[reporter].resolved++;
+  });
+
+  // Filter tasks by selected date for the "on this date" count
+  const dateFiltered=activeDateFilter==='all'
+    ? validTasks
+    : validTasks.filter(t=>toDateKey(getReportedOn(t))===activeDateFilter);
+
+  // Build date-filtered count per reporter
+  const dateStats={};
+  dateFiltered.forEach(t=>{
+    const reporter=getReportedBy(t).trim();
+    if(!reporter)return;
+    dateStats[reporter]=(dateStats[reporter]||0)+1;
+  });
+
+  // Merge into rows — only reporters who have entries globally
+  const rows=Object.entries(globalStats).map(([name,g])=>({
+    name,
+    dateCount:dateStats[name]||0,
+    total:g.total,
+    resolved:g.resolved
+  }));
+
+  // Sort by dateCount desc, then total desc
+  rows.sort((a,b)=>b.dateCount-a.dateCount||b.total-a.total);
+
+  if(rows.length===0){
+    renderLbEmpty('No feedback submitted yet.');
+    return;
+  }
+
+  const colLabel=activeDateFilter==='all'?'All time':'On '+activeDateFilter;
+
+  let html=`
+    <div class="lb-table-wrap">
+    <table class="lb-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th style="text-align:center">${colLabel}</th>
+          <th style="text-align:center">Total</th>
+          <th style="text-align:center">Resolved</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  rows.forEach((r,i)=>{
+    const rank=i+1;
+    const rankClass=rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'';
+    const color=aC(r.name.split('').reduce((a,c)=>a+c.charCodeAt(0),0));
+    const initials=aI(r.name);
+    html+=`
+      <tr>
+        <td><span class="${rankClass}" style="font-size:13px">${rank}</span></td>
+        <td>
+          <div class="lb-name">
+            <div class="lb-av" style="background:${color}">${initials}</div>
+            ${r.name}
+          </div>
+        </td>
+        <td class="lb-num">${r.dateCount>0?r.dateCount:'—'}</td>
+        <td class="lb-num-sm">${r.total}</td>
+        <td class="lb-resolved">${r.resolved>0?r.resolved:'—'}</td>
+      </tr>
+    `;
+  });
+
+  html+=`</tbody></table></div>`;
+  document.getElementById('lbBody').innerHTML=html;
+}
+
+function renderLbEmpty(msg){
+  document.getElementById('lbBody').innerHTML=`<div class="lb-empty">${msg}</div>`;
+}
+
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='Enter')doSubmit();
+  if(e.key==='Escape'){closePinModal();hideBanner();closeDrop()}
+});
+</script>
+</body>
+</html>
